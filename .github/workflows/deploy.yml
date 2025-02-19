@@ -24,9 +24,18 @@ jobs:
       # Construir y subir la imagen de la aplicación
       - name: Build and push PHP Docker image
         run: |
-          
           docker build -t ${{ secrets.DOCKER_USERNAME }}/calculadora:v1 .
           docker push ${{ secrets.DOCKER_USERNAME }}/calculadora:v1
+
+      # Asegurarse de que el directorio de despliegue exista
+      - name: Ensure deploy directory exists
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_KEY }}
+          script: |
+            mkdir -p ~/deploy
 
       # Transferir el archivo docker-compose.yaml al servidor remoto
       - name: Transfer docker-compose.yaml to remote server
@@ -35,9 +44,9 @@ jobs:
           host: ${{ secrets.REMOTE_HOST }}
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.REMOTE_KEY }}
-          source: ./docker-compose.yaml  # Ensure this points to the correct file
-          target: ~/deploy/ # Target file (not a directory)
-        
+          source: ./docker-compose.yaml  # Asegúrate de que apunta al archivo correcto
+          target: ~/deploy/ # Ruta de destino
+
       # Verificar la transferencia del archivo
       - name: Verify transfer of docker-compose.yaml
         uses: appleboy/ssh-action@master
@@ -46,11 +55,23 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           key: ${{ secrets.REMOTE_KEY }}
           script: |
-            ls -la /var/www/html  # List the contents of the deploy directory to confirm the file is there
-            # Also check if it's actually a file and not a directory
-            if [ -d /var/www/html/docker-compose.yaml ]; then
-              echo "docker-compose.yaml is a directory!"
+            ls -la ~/deploy  # Listar el contenido del directorio para confirmar que el archivo está allí
+            if [ ! -f ~/deploy/docker-compose.yaml ]; then
+              echo "docker-compose.yaml no es un archivo!"
               exit 1
+            fi
+
+      # Instalar Docker Compose en el servidor remoto (si es necesario)
+      - name: Install Docker Compose
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_HOST }}
+          username: ${{ secrets.REMOTE_USER }}
+          key: ${{ secrets.REMOTE_KEY }}
+          script: |
+            if ! [ -x "$(command -v docker-compose)" ]; then
+              sudo curl -L "https://github.com/docker/compose/releases/download/1.29.2/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+              sudo chmod +x /usr/local/bin/docker-compose
             fi
 
       # Verificar la versión de Docker y Docker Compose
