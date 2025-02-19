@@ -19,6 +19,7 @@ class Calculadora
     {
         return $a / $b;
     }
+    
     public function raiz($a)
     {
         return sqrt($a);
